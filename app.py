@@ -91,7 +91,12 @@ def initialize_components():
         raise
 
 async def run_agent(task: str):
+    browser = None
     try:
+        # Initialize browser for each request
+        browser_config = BrowserConfig(headless=st.session_state.browser_mode == "headless")
+        browser = Browser(config=browser_config)
+        
         agent = Agent(
             task=task,
             llm=llm,
@@ -100,32 +105,52 @@ async def run_agent(task: str):
         )
         result = await agent.run()
         final_result = result.final_result()
+        
         if final_result is None:
             st.error("No result was returned from the agent")
             return "No result found."
+            
+        if isinstance(final_result, dict) and 'posts' in final_result:
+            # Handle Posts model output
+            posts = final_result['posts']
+            if posts and len(posts) > 0:
+                return format_output(posts[0])
+        
         formatted_result = format_output(final_result)
         return formatted_result
     except Exception as e:
         st.error(f"Error during agent execution: {str(e)}")
         return f"Error: {str(e)}"
     finally:
-        try:
-            await browser.close()
-        except Exception as e:
-            st.warning(f"Error closing browser: {str(e)}")
+        if browser:
+            try:
+                await browser.close()
+            except Exception as e:
+                st.warning(f"Error closing browser: {str(e)}")
 
 def format_output(result):
-    # Check if result is a string and format accordingly
-    if isinstance(result, str):
-        # Assuming the result is a simple string with caption and URL separated by a comma
-        parts = result.split(',')
-        caption = parts[0].strip() if len(parts) > 0 else 'N/A'
-        url = parts[1].strip() if len(parts) > 1 else 'N/A'
-        formatted_result = f"Caption: {caption}, URL: {url}"
-    else:
-        # Assuming result is a dictionary or similar structure
-        formatted_result = f"Caption: {result.get('caption', 'N/A')}, URL: {result.get('url', 'N/A')}"
-    return formatted_result
+    try:
+        # Handle Posts model output
+        if isinstance(result, dict):
+            if 'posts' in result and result['posts'] and len(result['posts']) > 0:
+                post = result['posts'][0]
+                return f"Caption: {post.get('caption', 'N/A')}, URL: {post.get('url', 'N/A')}"
+            return f"Caption: {result.get('caption', 'N/A')}, URL: {result.get('url', 'N/A')}"
+        
+        # Handle string output
+        if isinstance(result, str):
+            if ',' in result:
+                parts = result.split(',')
+                caption = parts[0].strip()
+                url = parts[1].strip() if len(parts) > 1 else 'N/A'
+                return f"Caption: {caption}, URL: {url}"
+            return f"Result: {result}"
+            
+        # Handle other types
+        return str(result)
+    except Exception as e:
+        st.warning(f"Error formatting output: {str(e)}")
+        return str(result)
 
 # Main application flow
 if not st.session_state.setup_completed:
