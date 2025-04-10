@@ -81,24 +81,38 @@ def setup_components():
             st.error(f"Invalid API key: {str(e)}")
 
 def initialize_components():
-    llm = ChatGoogleGenerativeAI(model=st.session_state.model, api_key=SecretStr(st.session_state.api_key))
-    browser = Browser(config=BrowserConfig(headless=st.session_state.browser_mode == "headless"))
-    return llm, browser
+    try:
+        llm = ChatGoogleGenerativeAI(model=st.session_state.model, api_key=SecretStr(st.session_state.api_key))
+        browser_config = BrowserConfig(headless=st.session_state.browser_mode == "headless")
+        browser = Browser(config=browser_config)
+        return llm, browser
+    except Exception as e:
+        st.error(f"Failed to initialize components: {str(e)}")
+        raise
 
 async def run_agent(task: str):
-    agent = Agent(
-        task=task,
-        llm=llm,
-        browser=browser,
-        controller=controller
-    )
-    result = await agent.run()
-    await browser.close()
-    final_result = result.final_result()
-    if final_result is None:
-        return "No result found."
-    formatted_result = format_output(final_result)
-    return formatted_result
+    try:
+        agent = Agent(
+            task=task,
+            llm=llm,
+            browser=browser,
+            controller=controller
+        )
+        result = await agent.run()
+        final_result = result.final_result()
+        if final_result is None:
+            st.error("No result was returned from the agent")
+            return "No result found."
+        formatted_result = format_output(final_result)
+        return formatted_result
+    except Exception as e:
+        st.error(f"Error during agent execution: {str(e)}")
+        return f"Error: {str(e)}"
+    finally:
+        try:
+            await browser.close()
+        except Exception as e:
+            st.warning(f"Error closing browser: {str(e)}")
 
 def format_output(result):
     # Check if result is a string and format accordingly
