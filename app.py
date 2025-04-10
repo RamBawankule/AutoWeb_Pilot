@@ -13,6 +13,16 @@ if sys.platform.startswith("win"):
 
 load_dotenv()
 
+# Initialize session state
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = os.getenv("GEMINI_API_KEY", "")
+if 'browser_mode' not in st.session_state:
+    st.session_state.browser_mode = "visible"
+if 'model' not in st.session_state:
+    st.session_state.model = "models/gemini-2.0-flash"
+if 'setup_completed' not in st.session_state:
+    st.session_state.setup_completed = False
+
 class Post(BaseModel):
     caption: str
     url: str
@@ -21,9 +31,59 @@ class Posts(BaseModel):
     posts: List[Post]
 
 controller = Controller(output_model=Posts)
-api_key = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash', api_key=SecretStr(api_key))
-browser = Browser(config=BrowserConfig(headless=False))
+
+def setup_components():
+    st.title("Setup Configuration")
+    
+    # API Key input
+    api_key = st.text_input(
+        "Enter your Gemini API Key",
+        value=st.session_state.api_key,
+        type="password",
+        help="Enter your Gemini API key to enable the search functionality"
+    )
+    
+    # Model selection
+    model = st.selectbox(
+        "Select Model",
+        options=[
+            "models/gemini-2.5-pro-exp-03-25",
+            "models/gemini-2.0-flash",
+            "models/gemma-3-27b-it"
+        ],
+        index=1,
+        help="Select the AI model to use for processing"
+    )
+    
+    # Browser mode selection
+    browser_mode = st.radio(
+        "Select Browser Mode",
+        options=["visible", "headless"],
+        index=0 if st.session_state.browser_mode == "visible" else 1,
+        help="Visible mode shows the browser window, headless mode runs in the background"
+    )
+    
+    if st.button("Save Configuration"):
+        if not api_key:
+            st.error("Please enter your Gemini API key")
+            return
+        
+        try:
+            # Test API key by creating a simple chat instance
+            ChatGoogleGenerativeAI(model=model, api_key=SecretStr(api_key))
+            st.session_state.api_key = api_key
+            st.session_state.browser_mode = browser_mode
+            st.session_state.model = model
+            st.session_state.setup_completed = True
+            st.success("Configuration saved successfully!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Invalid API key: {str(e)}")
+
+def initialize_components():
+    llm = ChatGoogleGenerativeAI(model=st.session_state.model, api_key=SecretStr(st.session_state.api_key))
+    browser = Browser(config=BrowserConfig(headless=st.session_state.browser_mode == "headless"))
+    return llm, browser
 
 async def run_agent(task: str):
     agent = Agent(
@@ -53,12 +113,25 @@ def format_output(result):
         formatted_result = f"Caption: {result.get('caption', 'N/A')}, URL: {result.get('url', 'N/A')}"
     return formatted_result
 
-st.title("Browser Automation with Gemini")
-search_query = st.text_input("Enter your search query:")
-if st.button("Run Search"):
-    if search_query:
-        with st.spinner("Processing..."):
-            result = asyncio.run(run_agent(f"search '{search_query}' in google and give the first link from search results"))
-            st.write(result)
-    else:
-        st.warning("Please enter a search query.")
+# Main application flow
+if not st.session_state.setup_completed:
+    setup_components()
+else:
+    # Initialize components with saved configuration
+    llm, browser = initialize_components()
+    
+    st.title("AutoWeb Pilot")
+    
+    # Add a button to modify configuration
+    if st.sidebar.button("Modify Configuration"):
+        st.session_state.setup_completed = False
+        st.rerun()
+    
+    search_query = st.text_input("Enter your search query:")
+    if st.button("Run Search"):
+        if search_query:
+            with st.spinner("Processing..."):
+                result = asyncio.run(run_agent(f"search '{search_query}' in google and give the first link from search results"))
+                st.write(result)
+        else:
+            st.warning("Please enter a search query.")
