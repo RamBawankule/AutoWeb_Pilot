@@ -93,9 +93,14 @@ def initialize_components():
 async def run_agent(task: str):
     browser = None
     try:
-        # Initialize browser with headless configuration
+        # Initialize browser with Playwright configuration
         browser_config = BrowserConfig(
-            headless=st.session_state.browser_mode == "headless"
+            headless=st.session_state.browser_mode == "headless",
+            playwright_args=[
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-gpu"
+            ]
         )
         browser = Browser(config=browser_config)
         
