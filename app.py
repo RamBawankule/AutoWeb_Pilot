@@ -93,22 +93,9 @@ def initialize_components():
 async def run_agent(task: str):
     browser = None
     try:
-        # Initialize browser for each request with explicit launch options
+        # Initialize browser with headless configuration
         browser_config = BrowserConfig(
-            headless=st.session_state.browser_mode == "headless",
-            launch_options={
-                "args": [
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-gpu",
-                    "--disable-infobars",
-                    "--window-position=0,0",
-                    "--ignore-certifcate-errors",
-                    "--ignore-certifcate-errors-spki-list"
-                ]
-            }
+            headless=st.session_state.browser_mode == "headless"
         )
         browser = Browser(config=browser_config)
         
