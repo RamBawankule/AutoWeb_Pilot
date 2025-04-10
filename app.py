@@ -93,8 +93,23 @@ def initialize_components():
 async def run_agent(task: str):
     browser = None
     try:
-        # Initialize browser for each request
-        browser_config = BrowserConfig(headless=st.session_state.browser_mode == "headless")
+        # Initialize browser for each request with explicit launch options
+        browser_config = BrowserConfig(
+            headless=st.session_state.browser_mode == "headless",
+            launch_options={
+                "args": [
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-accelerated-2d-canvas",
+                    "--disable-gpu",
+                    "--disable-infobars",
+                    "--window-position=0,0",
+                    "--ignore-certifcate-errors",
+                    "--ignore-certifcate-errors-spki-list"
+                ]
+            }
+        )
         browser = Browser(config=browser_config)
         
         agent = Agent(
@@ -119,14 +134,22 @@ async def run_agent(task: str):
         formatted_result = format_output(final_result)
         return formatted_result
     except Exception as e:
-        st.error(f"Error during agent execution: {str(e)}")
+        st.error(f"Browser error: {type(e).__name__}: {str(e)}")
+        if browser:
+            try:
+                await browser.close()
+            except Exception as close_error:
+                st.warning(f"Failed to close browser: {str(close_error)}")
+            browser = None
         return f"Error: {str(e)}"
     finally:
         if browser:
             try:
                 await browser.close()
+                browser = None
             except Exception as e:
-                st.warning(f"Error closing browser: {str(e)}")
+                st.warning(f"Error during final browser cleanup: {str(e)}")
+                browser = None
 
 def format_output(result):
     try:
