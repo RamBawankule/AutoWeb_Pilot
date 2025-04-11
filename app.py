@@ -8,6 +8,8 @@ import os
 from dotenv import load_dotenv
 import asyncio
 
+import subprocess
+subprocess.run(["playwright", "install"], check=True)
 
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
